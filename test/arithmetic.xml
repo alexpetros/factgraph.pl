@@ -1,0 +1,179 @@
+<?xml version="1.0"?>
+<?xml-model href="./FactDictionaryModule.rng"?>
+<FactDictionaryModule>
+  <Facts>
+    <Fact path="/intA">
+      <Writable>
+        <Int/>
+      </Writable>
+    </Fact>
+    <Fact path="/dollarA">
+      <Writable>
+        <Dollar/>
+      </Writable>
+    </Fact>
+    <Fact path="/booleanA">
+      <Writable>
+        <Boolean/>
+      </Writable>
+    </Fact>
+    <Fact path="/addTwo">
+      <Derived>
+        <Add>
+          <Dependency path="/intA"/>
+          <Int>2</Int>
+        </Add>
+      </Derived>
+    </Fact>
+    <Fact path="/subtractTwo">
+      <Derived>
+        <Subtract>
+          <Minuend>
+            <Dependency path="/intA"/>
+          </Minuend>
+          <Subtrahends>
+            <Int>2</Int>
+          </Subtrahends>
+        </Subtract>
+      </Derived>
+    </Fact>
+    <Fact path="/multiplyByFour">
+      <Derived>
+        <Multiply>
+          <Dependency path="/intA"/>
+          <Int>2</Int>
+          <Int>2</Int>
+        </Multiply>
+      </Derived>
+    </Fact>
+    <Fact path="/divideByTwo">
+      <Derived>
+        <Divide>
+          <Dividend>
+            <Dependency path="/intA"/>
+          </Dividend>
+          <Divisors>
+            <Int>2</Int>
+          </Divisors>
+        </Divide>
+      </Derived>
+    </Fact>
+    <Fact path="/round">
+      <Derived>
+        <Round>
+          <Dependency path="/dollarA"/>
+        </Round>
+      </Derived>
+    </Fact>
+    <Fact path="/floor">
+      <Derived>
+        <Floor>
+          <Dependency path="/dollarA"/>
+        </Floor>
+      </Derived>
+    </Fact>
+    <Fact path="/max">
+      <Derived>
+        <GreaterOf>
+          <!-- <Dollar>3</Dollar> -->
+          <Dependency path="/intA"/>
+          <!-- <Dependency path="/dollarA"/> -->
+          <Int>1</Int>
+          <Int>0</Int>
+        </GreaterOf>
+      </Derived>
+    </Fact>
+    <Fact path="/modTwo">
+      <Derived>
+        <Modulo>
+          <Dependency path="/intA"/>
+          <Int>2</Int>
+        </Modulo>
+      </Derived>
+    </Fact>
+    <Fact path="/isTrue">
+      <Derived>
+        <Dependency path="/booleanA"/>
+      </Derived>
+    </Fact>
+    <Fact path="/isFalse">
+      <Derived>
+        <Not>
+          <Dependency path="/booleanA"/>
+        </Not>
+      </Derived>
+    </Fact>
+    <Fact path="/equalsTwo">
+      <Derived>
+        <Equal>
+          <Left>
+            <Dependency path="/intA"/>
+          </Left>
+          <Right>
+            <Int>2</Int>
+          </Right>
+        </Equal>
+      </Derived>
+    </Fact>
+    <Fact path="/notTwo">
+      <Derived>
+        <NotEqual>
+          <Left>
+            <Dependency path="/intA"/>
+          </Left>
+          <Right>
+            <Int>2</Int>
+          </Right>
+        </NotEqual>
+      </Derived>
+    </Fact>
+    <Fact path="/greaterThanTwo">
+      <Derived>
+        <GreaterThan>
+          <Left>
+            <Dependency path="/intA"/>
+          </Left>
+          <Right>
+            <Int>2</Int>
+          </Right>
+        </GreaterThan>
+      </Derived>
+    </Fact>
+    <Fact path="/lessThanTwo">
+      <Derived>
+        <LessThan>
+          <Left>
+            <Dependency path="/intA"/>
+          </Left>
+          <Right>
+            <Int>2</Int>
+          </Right>
+        </LessThan>
+      </Derived>
+    </Fact>
+    <Fact path="/greaterThanOrEqualToTwo">
+      <Derived>
+        <GreaterThanOrEqual>
+          <Left>
+            <Dependency path="/intA"/>
+          </Left>
+          <Right>
+            <Int>2</Int>
+          </Right>
+        </GreaterThanOrEqual>
+      </Derived>
+    </Fact>
+    <Fact path="/lessThanOrEqualToTwo">
+      <Derived>
+        <LessThanOrEqual>
+          <Left>
+            <Dependency path="/intA"/>
+          </Left>
+          <Right>
+            <Int>2</Int>
+          </Right>
+        </LessThanOrEqual>
+      </Derived>
+    </Fact>
+  </Facts>
+</FactDictionaryModule>

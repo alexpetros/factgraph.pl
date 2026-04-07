@@ -1,0 +1,443 @@
+/*
+ * factgraph.pl - a single-file Fact Graph implementation, in Prolog
+ *
+ * Requires Scryer Prolog.
+ *
+ * Official IRS Fact Graph: https://github.com/IRS-Public/fact-graph
+ * Execution model inspired by: https://www.metalevel.at/lisprolog/lisprolog.pl
+ */
+:- use_module(library(pio)).
+:- use_module(library(clpz)).
+:- use_module(library(charsio)).
+:- use_module(library(debug)).
+:- use_module(library(sgml)).
+:- use_module(library(xpath)).
+:- use_module(library(dcgs)).
+:- use_module(library(dif)).
+:- use_module(library(lists)).
+:- use_module(library(reif)).
+:- use_module(library(files)).
+:- use_module(library(time)).
+:- use_module(library(lambda)).
+:- use_module(library(serialization/json)).
+
+/* ----------------------------------------------------------------
+ * Fact path resolution utilities
+ * ---------------------------------------------------------------- */
+
+path_segment([H|T]) --> [H], { [H] \= "/" }, path_segment(T).
+path_segment([])    --> [].
+
+item_id(Id)                  --> "#", path_segment(Id).
+resolved_path(Coll, Sub, Id) --> seq(Coll), "/", item_id(Id), "/", seq(Sub).
+canonical_path(Coll, Sub)    --> seq(Coll), "/*/", seq(Sub).
+parent_path(Coll)            --> resolved_path(Coll, _, _) | canonical_path(Coll, _).
+relative_path(Sub)           --> "../", seq(Sub).
+
+path_parent_collection(Path, Parent) :- phrase(parent_path(Parent), Path).
+relative_path_parent_resolved(RelPath, Parent, Resolved) :-
+  phrase(relative_path(Sub), RelPath),
+  phrase(resolved_path(Coll, _, Id), Parent),
+  phrase(resolved_path(Coll, Sub, Id), Resolved).
+
+% TODO see if these can be made less imperative
+collection_id_path(Coll, Id, Path) :- append([Coll, "/#", Id], Path).
+resolved_to_canonical(R, C) :-
+  phrase(resolved_path(Coll, Sub, _), R),
+  phrase(canonical_path(Coll, Sub), C).
+canonical_to_resolved(C, Id, R) :-
+  phrase(canonical_path(Coll, Sub), C),
+  phrase(resolved_path(Coll, Sub, Id), R).
+
+/* ----------------------------------------------------------------
+ * Fact Dictionary Parser
+ * ---------------------------------------------------------------- */
+
+% Trimmed XML file has no whitespace-only string nodes and trims the rest
+% It's much faster with the cut but look into taking it out
+trim_xml([N|Ns]) --> { phrase(ws, N) }, trim_xml(Ns), !.
+trim_xml([N|Ns]) --> { phrase(trim_str(S), N) }, [S], trim_xml(Ns).
+trim_xml([element('',_,_)|Ns]) --> trim_xml(Ns). % These are comments
+trim_xml([element(E, A, C)|Ns]) -->
+  { dif('', E), phrase(trim_xml(C), Tc) },
+  [element(E, A, Tc)],
+  trim_xml(Ns).
+trim_xml([]) --> [].
+
+% String parsing predicates
+ws                    --> [W], { char_type(W, whitespace) }, ws.
+ws                    --> [].
+trim_str([H|T])       --> ws, seq([H|T]), { \+ char_type(H, whitespace) }, ws, call(eos), !.
+trim_str([])          --> [].
+eos([], []).
+
+% Writable types
+type(int)             --> [element('Int',_,[])].
+type(boolean)         --> [element('Boolean',_,[])].
+type(dollar)          --> [element('Dollar',_,[])].
+type(day)             --> [element('Day',_,[])].
+type(collection)      --> [element('Collection',_,[])].
+type(enum(Op))        --> [element('Enum', [optionsPath=Op], _)].
+type_elem(Type)       --> ..., type(Type), ... .
+
+% Values used in derived calculations
+value(int(V))            --> [element('Int', _, [S])], { number_chars(V, S) }.
+value(dollar(V))         --> [element('Dollar', _, [S])], { number_chars(V, S) }.
+value(boolean(V))        --> [element('Boolean',_,[S])], { atom_chars(V, S) }.
+value(boolean(true))     --> [element('True',_,[])].
+value(boolean(false))    --> [element('False',_,[])].
+value(day(V))            --> [element('Day',_,[V])].
+value(days(V))           --> [element('Days',_,[V])].
+value(rational(V))       --> [element('Rational',_,[V])].
+value(enum(V, Op))       --> [element('Enum', [optionsPath=Op], [V])].
+value(enumOpts(V))       --> [element('EnumOptions', _, V)].
+value(today(V))          --> [element('Today',_,[V])].
+value(lastDayOfMonth(V)) --> [element('LastDayOfMonth',_,[V])].
+
+% Limits for writable facts
+limit_exp(E)       --> ..., exp(E), ... .
+limit(min(E))      --> [element('Limit', [type="Min"], C)], { phrase(limit_exp(E), C) }.
+limit(max(E))      --> [element('Limit', [type="Max"], C)], { phrase(limit_exp(E), C) }.
+limit_elem([E|Es]) --> limit(E), limit_elem(Es).
+limit_elem([])     --> [].
+
+placeholder(E)  --> ..., value(E), ... .
+
+condition(E)        --> [element('Condition',_,C)], { exps(C, [E]) }.
+default(E)          --> [element('Default',_,C)], { exps(C, [E]) }.
+override(Cond, Def) --> condition(Cond), default(Def).
+
+dependency(P)      --> [element('Dependency', [path=P], [])].
+
+exps_l_r([L0, R0], L, R) :-
+  L0 = element('Left', _, LC),
+  R0 = element('Right', _, RC),
+  exps(LC, [L]),
+  exps(RC, [R]).
+
+% Convenience predicates for recursive parsing of children
+exps(C, Es) :- phrase(expressions(Es), C).
+
+exp(switch(Es))     --> [element('Switch',_,C)], { exps(C, Es) }.
+exp(case(Es))       --> [element('Case',_,C)], { exps(C, Es) }.
+exp(when(E))        --> [element('When',_,C)], { exps(C, [E]) }.
+exp(then(E))        --> [element('Then',_,C)], { exps(C, [E]) }.
+exp(greaterOf(Es))  --> [element('GreaterOf',_,C)], { exps(C, Es) }.
+exp(lesserOf(Es))   --> [element('LesserOf',_,C)], { exps(C, Es) }.
+
+exp(not(E))          --> [element('Not',_,C)], { exps(C, [E]) }.
+exp(equal(L, R))     --> [element('Equal',_,C)], { exps_l_r(C, L, R) }.
+exp(notEqual(L, R))  --> [element('NotEqual',_,C)], { exps_l_r(C, L, R) }.
+exp(all(Es))         --> [element('All',_,C)], { exps(C, Es) }.
+exp(any(Es))         --> [element('Any',_,C)], { exps(C, Es) }.
+exp(isComplete(E))   --> [element('IsComplete',_,C)], { exps(C, [E]) }.
+
+exp(<(L, R))  --> [element('LessThan',_,C)], { exps_l_r(C, L, R) }.
+exp(>(L, R))  --> [element('GreaterThan',_,C)], { exps_l_r(C, L, R) }.
+exp(>=(L,R))  --> [element('GreaterThanOrEqual',_,C)], { exps_l_r(C, L, R) }.
+exp(=<(L,R))  --> [element('LessThanOrEqual',_,C)], { exps_l_r(C, L, R) }.
+
+exp(round(E))         --> [element('Round',_,C)], { exps(C, [E]) }.
+exp(add(Es))          --> [element('Add',_,C)], { exps(C, Es) }.
+exp(subtract(Es))     --> [element('Subtract',_,C)], { exps(C, Es) }.
+exp(minuend(E))       --> [element('Minuend',_,C)], { exps(C, [E]) }.
+exp(subtrahends(Es))  --> [element('Subtrahends',_,C)], { exps(C, Es) }.
+exp(multiply(Es))     --> [element('Multiply',_,C)], { exps(C, Es) }.
+exp(divide(Es))       --> [element('Divide',_,C)], { exps(C, Es) }.
+exp(dividend(E))      --> [element('Dividend',_,C)], { exps(C, [E]) }.
+exp(divisors(Es))     --> [element('Divisors',_,C)], { exps(C, Es) }.
+exp(stepwiseMult(Es)) --> [element('StepwiseMultiply',_,C)], { exps(C, Es) }.
+exp(multiplicand(Es)) --> [element('Multiplicand',_,C)], { exps(C, Es) }.
+exp(rate(Es))         --> [element('Rate',_,C)], { exps(C, Es) }.
+exp(ceiling(E))       --> [element('Ceiling',_,C)], { exps(C, [E]) }.
+exp(floor(E))         --> [element('Floor',_,C)], { exps(C, [E]) }.
+exp(maximum(E))       --> [element('Maximum',_,C)], { exps(C, [E]) }.
+exp(minimum(E))       --> [element('Minimum',_,C)], { exps(C, [E]) }.
+exp(modulo(L,R))      --> [element('Modulo',_,[L0, R0])], { exps([L0], [L]), exps([R0], [R]) }.
+
+exp(addPayrollMonths(Es))     --> [element('AddPayrollMonths',_,C)], { exps(C, Es) }.
+exp(payrollMonthsBetween(Es)) --> [element('PayrollMonthsBetween',_,C)], { exps(C, Es) }.
+exp(startDate(Es))            --> [element('StartDate',_,C)], { exps(C, Es) }.
+exp(endDate(Es))              --> [element('EndDate',_,C)], { exps(C, Es) }.
+
+% Collections
+exp(index(E))           --> [element('Index',_,C)], { exps(C, [E]) }.
+exp(indexOf(Es))        --> [element('IndexOf',_,C)], { exps(C, Es) }.
+exp(collection(E))      --> [element('Collection',_,C)], { exps(C, [E]) }.
+exp(collectionSum(E))   --> [element('CollectionSum',_,C)], { exps(C, [E]) }.
+exp(collectionSize(E))  --> [element('CollectionSize',_,C)], { exps(C, [E]) }.
+exp(count(Es))          --> [element('Count',_,C)], { exps(C, Es) }.
+exp(filter(P, E))       --> [element('Filter',[path=P],C)], { exps(C, [E]) }.
+exp(V)                  --> value(V).
+
+exp(dependency(E))      --> dependency(E).
+% u_exp(u_exp(N,A,C)) --> [element(N,A,C)], { *format("~q~n~n", [N]) }.
+
+expressions([E|Es]) --> exp(E), expressions(Es).
+% expressions([E|Es]) --> u_exp(E), expressions(Es).
+expressions([])     --> [].
+
+writable(C) -->
+  {
+    tpartition(name_element_t('Limit'), C, Ls, Es),
+    phrase(type_elem(Type), Es),
+    phrase(limit_elem(Limits), Ls)
+  },
+  [writable(Type, Limits)].
+
+derived(C) -->
+  % Removing whitespace-only nodes makes it easier to write the expression nonterminals
+  % because I can do things like expect that a node only has one child
+  { phrase(trim_xml(C), Es), phrase(expressions([E]), Es) },
+  [derived(E)].
+
+element_name([_|_], 'String').
+element_name(element(N,_,_), N).
+name_element_t(ExpectedName, E, T) :- element_name(E, N), =(N, ExpectedName, T).
+has_child_element_t(Cs, Name, T) :- maplist(element_name, Cs, Ns), memberd_t(Name, Ns, T).
+
+fact_description(C, "") :- has_child_element_t(C, 'Description', false).
+fact_description(C, D) :- member(element('Description', _, [N]), C), phrase(trim_str(D), N).
+
+fact_expression(C, Ex) :-
+    if_(
+      has_child_element_t(C, 'Derived'),
+      ( member(element('Derived', _, E), C), phrase(derived(E), [Ex]) ),
+      ( member(element('Writable', _, Wc), C), phrase(writable(Wc), [Ex]) )
+    ).
+
+fact_placeholder(C, none) :- has_child_element_t(C, 'Placeholder', false).
+fact_placeholder(C, Pl) :-
+  member(element('Placeholder', _, Pc), C),
+  phrase(placeholder(Pl), Pc).
+
+fact_override(C, none) :- has_child_element_t(C, 'Override', false).
+fact_override(C, override(Cond, Def)) :-
+    member(element('Override', _, Oc), C),
+    phrase(trim_xml(Oc), Es),
+    phrase(override(Cond, Def), Es).
+
+fact_element(P, C) -->
+  {
+    fact_description(C, D),
+    fact_expression(C, Ex),
+    fact_placeholder(C, Pl),
+    fact_override(C, Ov)
+  },
+  [fact(P, D, Ex, Pl, Ov)].
+
+facts([element('Fact', [path=P], C)|Ns]) --> fact_element(P,C), facts(Ns).
+facts([element('', _, _)|Ns]) --> facts(Ns).
+facts([[_|_]|Fs]) --> facts(Fs).
+facts([]) --> [].
+
+/* ----------------------------------------------------------------
+ * Fact Graph (JSON) parser
+ * ---------------------------------------------------------------- */
+
+extract_string(string(S),S).
+
+type_item_value(int, number(V), int(V)).
+type_item_value(boolean, boolean(V), boolean(V)).
+type_item_value(dollar, string(S), dollar(V)) :- number_chars(V, S).
+type_item_value(day, pairs(P), day(V)) :- member(string("date")-string(V), P).
+type_item_value(date, pairs(P), date(V)) :- member(string("date")-string(V), P).
+type_item_value(enum(_), pairs(P), enum(V)) :- member(string("value")-string(V), P).
+type_item_value(collection, pairs(P), collection(V)) :-
+  member(string("items")-list(StrValues), P),
+  maplist(extract_string, StrValues, V).
+
+graph(D, [fact_value(P,Val)|Fs]) -->
+  [string(P)-pairs(Pairs)],
+  {
+    if_(memberd_t('#', P), resolved_to_canonical(P, Cp), P = Cp),
+    member(fact(Cp,_,writable(Type,_),_, _), D),
+    member(string("item")-Item, Pairs),
+    type_item_value(Type, Item, Val)
+  },
+  graph(D, Fs).
+graph(_,[]) --> [].
+
+starts_with_t(S0, S, false) :- length(S0, L0), length(S, L), L #< L0.
+starts_with_t(S0, S, T) :- length(S0, L), length(S1, L), append([S1, _], S), =(S0, S1, T).
+
+is_meta_fact(string(P)-pairs(_), T) :- starts_with_t("/meta", P, I), not_t(I, T).
+load_graph(Fp, D, G) :-
+  phrase_from_file(json_chars(pairs(L0)), Fp),
+  tfilter(is_meta_fact, L0, L),
+  phrase(graph(D, G), L).
+
+graph_path_value(G, P, V) :- member(fact_value(P, V), G).
+
+/* ----------------------------------------------------------------
+ * Evaluate
+ * ---------------------------------------------------------------- */
+
+% Reifed arithmetic predicates
+not_t(true, false).
+not_t(false, true).
+eq_t(A, B, true)  :- A =:= B.
+eq_t(A, B, false) :- A =\= B.
+lt_t(A, B, true)  :- A < B.
+lt_t(A, B, false) :- A >= B.
+gt_t(A, B, true)  :- A > B.
+gt_t(A, B, false) :- A =< B.
+neq_t(A, B, T)    :- eq_t(A, B, I), not_t(I, T).
+gte_t(A, B, T)    :- lt_t(A, B, I), not_t(I, T).
+lte_t(A, B, T)    :- gt_t(A, B, I), not_t(I, T).
+
+% Reifed logic predicates
+all_t([], true).
+all_t([E|Es], T) :- ','(=(E, true), all_t(Es), T).
+any_t([], false).
+any_t([E|Es], T) :- ';'(=(E, true), any_t(Es), T).
+
+fold([], _, V, V).
+fold([F|Fs], Op, V0, V) :- E =..[Op, V0, F], V1 is E, fold(Fs, Op, V1, V).
+
+eval_all([], [])         --> [].
+eval_all([A|As], [B|Bs]) --> eval(A, B), eval_all(As, Bs).
+
+eval(int(V), V)        --> [].
+eval(dollar(V), V)     --> [].
+eval(boolean(V), V)    --> [].
+eval(enum(V, _), V)    --> [].
+eval(collection(V), V) --> []. % This is a <Writable> collection
+
+% value(enumOpts(V))       --> [element('EnumOptions', _, V)].
+% value(day(V))            --> [element('Day',_,[V])].
+% value(days(V))           --> [element('Days',_,[V])].
+% value(today(V))          --> [element('Today',_,[V])].
+% value(lastDayOfMonth(V)) --> [element('LastDayOfMonth',_,[V])].
+
+eval(not(T0), V)          --> eval(T0, T), { not_t(T, V) }.
+eval(equal(L0, R0), V)    --> eval(L0, L), eval(R0, R), { eq_t(L, R, V) }.
+eval(notEqual(L0, R0), V) --> eval(L0, L), eval(R0, R), { neq_t(L, R, V) }.
+eval(<(L0, R0), V)        --> eval(L0, L), eval(R0, R), { lt_t(L, R, V) }.
+eval(>(L0, R0), V)        --> eval(L0, L), eval(R0, R), { gt_t(L, R, V) }.
+eval(>=(L0, R0), V)       --> eval(L0, L), eval(R0, R), { gte_t(L, R, V) }.
+eval(=<(L0, R0), V)       --> eval(L0, L), eval(R0, R), { lte_t(L, R, V) }.
+
+eval(add(Ts0), V)       --> eval_all(Ts0, Ts), { fold(Ts, +, 0, V) }.
+eval(multiply(Ts0), V)  --> eval_all(Ts0, Ts), { fold(Ts, *, 1, V) }.
+eval(round(T0), V)      --> eval(T0, T), { V is floor(T + 0.5) }.
+eval(ceiling(T0), V)    --> eval(T0, T), { V is ceiling(T) }.
+eval(floor(T0), V)      --> eval(T0, T), { V is floor(T) }.
+eval(modulo(L0, R0), V) --> eval(L0, L), eval(R0, R), { V is L mod R  }.
+eval(greaterOf(Ts0), V) --> eval_all(Ts0, Ts), { list_max(Ts, V) }.
+eval(lesserOf(Ts0), V)  --> eval_all(Ts0, Ts), { list_min(Ts, V) }.
+
+eval(divide([dividend(D0), divisors(Ds0)]), V) -->
+  eval(D0, D),
+  eval_all(Ds0, Ds),
+  { fold(Ds, /, D, V) }.
+eval(subtract([minuend(M0), subtrahends(Ss0)]), V) -->
+  eval(M0, M),
+  eval_all(Ss0, Ss),
+  { fold(Ss, -, M, V) }.
+
+% Collections
+eval(maximum(E), V)        --> eval(E, Vs), { list_max(Vs, V) }.
+eval(minimum(E), V)        --> eval(E, Vs), { min(Vs, V) }.
+eval(collectionSum(E), V)  --> eval(E, Vs), { sum_list(Vs, V) }.
+eval(collectionSize(E), V) --> eval(E, Vs), { length(Vs, V) }.
+eval(count(T0s), V)        --> eval_all(T0s, T1s), { tfilter(=(true), T1s, Vs), length(Vs, V) }.
+
+eval(indexOf([collection(C0), index(I0)]), V) --> eval(C0, C), eval(I0, I), { nth0(I, C, V) }.
+eval(collection(T0), V) --> eval(T0, V).
+
+eval(filter(CollPath, E), Vs), [s(D,G,Par)]  -->
+  [s(D,G,Par)],
+  {
+    eval_path(D, G, CollPath, ItemIds),
+    tfilter(maybe_eval_exp_in_filter(D, G, E, CollPath), ItemIds, Vs)
+  }.
+
+% Resolves dependencies inside collection filter paths,
+% which have no leading "." or "/" (this interface could be improved)
+eval(dependency(FilterPath), V), [s(D,G,CollectionItemPath)] -->
+  [s(D,G,CollectionItemPath)],
+  { FilterPath = [C|_], [C] \= ".", [C] \= "/" },
+  {
+    append([CollectionItemPath, "/", FilterPath], ResolvedPath),
+    eval_path(D, G, ResolvedPath, V)
+  }.
+% Resolves canonical paths to list of all those facts
+% i.e. <Dependency path="/jobs/*/income"> is a list of all incomes
+eval(dependency(Path), Vs), [s(D,G,Par)] -->
+  [s(D,G,Par)],
+  {
+    path_parent_collection(Path, CollPath),
+    eval_path(D, G, CollPath, ItemIds),
+    maplist(canonical_to_resolved(Path), ItemIds, ItemPaths),
+    maybe_eval_paths(D, G, ItemPaths, V0s),
+    filter_incomplete(V0s, Vs)
+  }.
+% Resolves all other dependencies
+eval(dependency(Path), V), [s(D,G,Par)] -->
+  [s(D,G,Par)],
+  {
+    ( RPath = Path ; relative_path_parent_resolved(Path, Par, RPath)),
+    eval_path(D, G, RPath, V)
+  }.
+
+
+eval_path(D, G, RPath, Value) :-
+  ( CPath = RPath ; resolved_to_canonical(RPath, CPath)),
+  member(fact(CPath, _, Ex, Pl, Ov), D),
+  (
+    % The override evaluation is a little nasty, and regrettably non-monotonic
+    ( Ov = override(Cond, Def), phrase(eval(Cond, true), [s(D,G,RPath)], _)) -> E = Def
+    ; Ex = writable(_, _), graph_path_value(G, RPath, E) -> true
+    ; Ex = derived(E) -> true
+    ; E = Pl
+  ),
+  phrase(eval(E, Value), [s(D,G,RPath)], _).
+
+eval_paths(D, G, Paths, Values) :- maplist(eval_path(D, G), Paths, Values).
+
+% Evalute paths that might be incomplete
+% Used for predicates that operate on collections, as well as <IsComplete>
+filter_incomplete(P0s, Ps) :- tfilter(dif(incomplete), P0s, Ps).
+maybe_eval_path(D, G, P, Value) :- ( eval_path(D, G, P, V) -> Value = V; Value = incomplete ).
+maybe_eval_paths(D, G, Paths, Values) :- maplist(maybe_eval_path(D, G), Paths, Values).
+
+% Evaluates to true or false, where incompletes are false
+% Only used in <Filter> contexts
+maybe_eval_exp_in_filter(D, G, E, CollPath, ItemId, Value) :-
+  collection_id_path(CollPath, ItemId, CollectionItemPath),
+  ( phrase(eval(E, V), [s(D,G,CollectionItemPath)], _) -> Value = V; Value = false ).
+
+
+/* ----------------------------------------------------------------
+ * Usage
+ * ---------------------------------------------------------------- */
+load_dict(Fp, Facts) :-
+  load_xml(file(Fp), Xml, []),
+  member(element('FactDictionaryModule', _, Module), Xml),
+  member(element('Facts', _, FactsElements), Module),
+  phrase(facts(FactsElements), Facts).
+
+% Get all the .xml files in ./facts
+is_xml_file(Fp, false) :- length(Fp, L), L #< 4.
+is_xml_file(Fp, T) :- length(Fp1, 4), append(_, [_|Fp1], Fp), =(Fp1, ".xml", T).
+all_fact_files(DirPath, Fps) :-
+  directory_files(DirPath, Files),
+  tfilter(is_xml_file, Files, XmlFiles),
+  maplist(append(DirPath), XmlFiles, Fps).
+
+% Flattens the XML tree - useful for debugging
+all_elements([element(N,_,C)|Es]) --> [N], all_elements(C), all_elements(Es).
+all_elements([[_|_]|Es])          --> all_elements(Es).
+all_elements([])                  --> [].
+
+load_fact_dir(DirPath, Fs) :-
+  all_fact_files(DirPath, Fps),
+  maplist(load_dict, Fps, Fss),
+  phrase(seqq(Fss), Fs).
+
+% Load the facts so that they can be queried in the top-level
+term_expansion(load_fact_dictionary, Fs) :- load_fact_dir("./twe-facts/", Fs).
+% load_fact_dictionary.
+
+writeln(S) :- format("~w~n", [S]).

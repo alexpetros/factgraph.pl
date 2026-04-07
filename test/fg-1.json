@@ -1,0 +1,92 @@
+{
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/isAllYear": {
+    "$type": "BooleanWrapper",
+    "item": true
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/mostRecentPayPeriodHasBonus": {
+    "$type": "BooleanWrapper",
+    "item": false
+  },
+  "/wantsStandardDeduction": {
+    "$type": "BooleanWrapper",
+    "item": true
+  },
+  "/primaryFilerIsClaimingDependents": {
+    "$type": "BooleanWrapper",
+    "item": false
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/yearToDateWithholding": {
+    "$type": "DollarWrapper",
+    "item": "3000.00"
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/amountLastPaycheck": {
+    "$type": "DollarWrapper",
+    "item": "3000.00"
+  },
+  "/meta/migrationsApplied": {
+    "$type": "IntWrapper",
+    "item": 2
+  },
+  "/filingStatus": {
+    "$type": "EnumWrapper",
+    "item": {
+      "value": "single",
+      "enumOptionsPath": "/filingStatusOptions"
+    }
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/payFrequency": {
+    "$type": "EnumWrapper",
+    "item": {
+      "value": "weekly",
+      "enumOptionsPath": "/payFrequencyOptions"
+    }
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/amountWithheldLastPaycheck": {
+    "$type": "DollarWrapper",
+    "item": "350.00"
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/isHourlyJob": {
+    "$type": "BooleanWrapper",
+    "item": false
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/mostRecentPayPeriodEnd": {
+    "$type": "DayWrapper",
+    "item": {
+      "date": "2026-03-20"
+    }
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/totalFutureBonus": {
+    "$type": "DollarWrapper",
+    "item": "0.00"
+  },
+  "/primaryFilerAge65OrOlder": {
+    "$type": "BooleanWrapper",
+    "item": false
+  },
+  "/primaryFilerIsBlind": {
+    "$type": "BooleanWrapper",
+    "item": false
+  },
+  "/primaryFilerIsClaimedOnAnotherReturn": {
+    "$type": "BooleanWrapper",
+    "item": false
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/yearToDateIncome": {
+    "$type": "DollarWrapper",
+    "item": "20000.00"
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/mostRecentPayDate": {
+    "$type": "DayWrapper",
+    "item": {
+      "date": "2026-03-20"
+    }
+  },
+  "/jobs": {
+    "$type": "CollectionWrapper",
+    "item": {
+      "items": [
+        "2a0c7011-4509-484f-a506-13f864cf64b2"
+      ]
+    }
+  }
+}

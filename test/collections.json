@@ -1,0 +1,20 @@
+{
+  "/jobs": {
+    "$type": "CollectionWrapper",
+    "item": {
+      "items": [
+        "2a0c7011-4509-484f-a506-13f864cf64b2",
+        "5ff49e28-7728-4424-9047-c444e0f01923",
+        "a882314e-eff8-48e7-a259-db6b5ef4e186"
+      ]
+    }
+  },
+  "/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/income": {
+    "$type": "DollarWrapper",
+    "item": "3000.00"
+  },
+  "/jobs/#5ff49e28-7728-4424-9047-c444e0f01923/income": {
+    "$type": "DollarWrapper",
+    "item": "6000.00"
+  }
+}

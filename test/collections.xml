@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+<?xml-model href="./FactDictionaryModule.rng"?>
+<FactDictionaryModule>
+  <Facts>
+    <Fact path="/jobs">
+      <Writable>
+        <Collection/>
+      </Writable>
+    </Fact>
+    <Fact path="/pensions">
+      <Writable>
+        <Collection/>
+      </Writable>
+    </Fact>
+    <Fact path="/jobs/*/income">
+      <Writable>
+        <Dollar/>
+      </Writable>
+    </Fact>
+    <Fact path="/jobs/*/halfIncome">
+      <Derived>
+        <Divide>
+          <Dividend>
+            <Dependency path="../income"></Dependency>
+          </Dividend>
+          <Divisors>
+            <Int>2</Int>
+          </Divisors>
+        </Divide>
+      </Derived>
+    </Fact>
+    <Fact path="/numJobs">
+      <Derived>
+        <CollectionSize>
+          <Dependency path="/jobs"/>
+        </CollectionSize>
+      </Derived>
+    </Fact>
+    <Fact path="/numJobsWithIncome">
+      <Derived>
+        <CollectionSize>
+          <Dependency path="/jobs/*/income"/>
+        </CollectionSize>
+      </Derived>
+    </Fact>
+    <Fact path="/numPensions">
+      <Derived>
+        <CollectionSize>
+          <Dependency path="/pensions"/>
+        </CollectionSize>
+      </Derived>
+    </Fact>
+    <Fact path="/totalIncome">
+      <Derived>
+        <CollectionSum>
+          <Dependency path="/jobs/*/income"/>
+        </CollectionSum>
+      </Derived>
+    </Fact>
+    <Fact path="/maximumJobIncome">
+      <Derived>
+        <Maximum>
+          <Dependency path="/jobs/*/income"/>
+        </Maximum>
+      </Derived>
+    </Fact>
+    <Fact path="/highestPayingJob">
+      <Derived>
+        <IndexOf>
+          <Collection>
+            <Filter path="/jobs">
+              <Equal>
+                <Left>
+                  <Maximum>
+                    <Dependency path="/jobs/*/income"/>
+                  </Maximum>
+                </Left>
+                <Right>
+                  <Dependency path="income"/>
+                </Right>
+              </Equal>
+            </Filter>
+          </Collection>
+          <Index>
+            <Int>0</Int>
+          </Index>
+        </IndexOf>
+      </Derived>
+    </Fact>
+    <Fact path="/countHighestPayingJobOver1000">
+      <Derived>
+        <Count>
+          <GreaterThan>
+            <Left>
+              <Dependency path="/maximumJobIncome"/>
+            </Left>
+            <Right>
+              <Dollar>1000</Dollar>
+            </Right>
+          </GreaterThan>
+        </Count>
+      </Derived>
+    </Fact>
+    <Fact path="/countHighestPayingJobOver9000">
+      <Derived>
+        <Count>
+          <GreaterThan>
+            <Left>
+              <Dependency path="/maximumJobIncome"/>
+            </Left>
+            <Right>
+              <Dollar>9000</Dollar>
+            </Right>
+          </GreaterThan>
+        </Count>
+      </Derived>
+    </Fact>
+  </Facts>
+</FactDictionaryModule>
+

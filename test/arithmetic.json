@@ -1,0 +1,14 @@
+{
+  "/intA": {
+    "$type": "IntWrapper",
+    "item": 2
+  },
+  "/dollarA": {
+    "$type": "DollarWrapper",
+    "item": "2.5"
+  },
+  "/booleanA": {
+    "$type": "BooleanWrapper",
+    "item": true
+  }
+}
