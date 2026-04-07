@@ -1,6 +1,16 @@
 # factgraph.pl
 
-A Prolog implementation of the [IRS Fact Graph](https://github.com/IRS-Public/fact-graph).
+A single-file Prolog implementation of the [IRS Fact Graph](https://github.com/IRS-Public/fact-graph).
+
+The purpose of this project is to strengthen my understanding the Fact Graph's semantics by reimplementing it.
+At this time, it can parse the entire [Tax Withholding Estimator](https://github.com/IRS-Public/tax-withholding-estimator) Fact Dictionary.
+It can also evaluate a variety of test cases, but some work remains before it can evaluate TWE's facts, mainly involving dates.
+
+I recommend attempting to read `factgraph.pl` without syntax highlighting on, or at least syntax highlighting that is more restrained than GitHub's.
+This implementation uses intermediate Prolog features, particularly [DCGs with semicontext notation](https://www.metalevel.at/prolog/dcg), but I am doing to my best to make is vibrationally accessible, so to speak;
+it's worth at least taking a peak at the file even if you've never thought about Prolog before.
+
+If you are unfamiliar with Prolog and would like to use this codebase as a reason to learn, I recommend ["The Power of Prolog"](https://www.metalevel.at/prolog) by Markus Triska and the accompanying videos.
 
 ## Setup
 
