@@ -71,43 +71,47 @@ trim_str([H|T])       --> ws, seq([H|T]), { \+ char_type(H, whitespace) }, ws, c
 trim_str([])          --> [].
 eos([], []).
 
+% Nonterminals to make XML parsing a little more elegant
+element(Name, Cs)        --> [element(Name, _, Cs)].
+element(Name, Attrs, Cs) --> [element(Name, Attrs, Cs)].
+
 % Writable types
-type(int)             --> [element('Int',_,[])].
-type(boolean)         --> [element('Boolean',_,[])].
-type(dollar)          --> [element('Dollar',_,[])].
-type(day)             --> [element('Day',_,[])].
-type(collection)      --> [element('Collection',_,[])].
-type(enum(Op))        --> [element('Enum', [optionsPath=Op], _)].
+type(int)             --> element('Int',[]).
+type(boolean)         --> element('Boolean',[]).
+type(dollar)          --> element('Dollar',[]).
+type(day)             --> element('Day',[]).
+type(collection)      --> element('Collection',[]).
+type(enum(Op))        --> element('Enum', [optionsPath=Op], _).
 type_elem(Type)       --> ..., type(Type), ... .
 
 % Values used in derived calculations
-value(int(V))            --> [element('Int', _, [S])], { number_chars(V, S) }.
-value(dollar(V))         --> [element('Dollar', _, [S])], { number_chars(V, S) }.
-value(boolean(V))        --> [element('Boolean',_,[S])], { atom_chars(V, S) }.
-value(boolean(true))     --> [element('True',_,[])].
-value(boolean(false))    --> [element('False',_,[])].
-value(day(V))            --> [element('Day',_,[V])].
-value(days(V))           --> [element('Days',_,[V])].
-value(rational(V))       --> [element('Rational',_,[V])].
-value(enum(V, Op))       --> [element('Enum', [optionsPath=Op], [V])].
-value(enumOpts(V))       --> [element('EnumOptions', _, V)].
-value(today(V))          --> [element('Today',_,[V])].
-value(lastDayOfMonth(V)) --> [element('LastDayOfMonth',_,[V])].
+value(int(V))            --> element('Int', [S]), { number_chars(V, S) }.
+value(dollar(V))         --> element('Dollar', [S]), { number_chars(V, S) }.
+value(boolean(V))        --> element('Boolean', [S]), { atom_chars(V, S) }.
+value(boolean(true))     --> element('True', []).
+value(boolean(false))    --> element('False', []).
+value(day(V))            --> element('Day', [V]).
+value(days(V))           --> element('Days', [V]).
+value(rational(V))       --> element('Rational', [V]).
+value(enum(V, Op))       --> element('Enum', [optionsPath=Op], [V]).
+value(enumOpts(V))       --> element('EnumOptions', V).
+value(today(V))          --> element('Today', [V]).
+value(lastDayOfMonth(V)) --> element('LastDayOfMonth', [V]).
 
 % Limits for writable facts
 limit_exp(E)       --> ..., exp(E), ... .
-limit(min(E))      --> [element('Limit', [type="Min"], C)], { phrase(limit_exp(E), C) }.
-limit(max(E))      --> [element('Limit', [type="Max"], C)], { phrase(limit_exp(E), C) }.
+limit(min(E))      --> element('Limit', [type="Min"], C), { phrase(limit_exp(E), C) }.
+limit(max(E))      --> element('Limit', [type="Max"], C), { phrase(limit_exp(E), C) }.
 limit_elem([E|Es]) --> limit(E), limit_elem(Es).
 limit_elem([])     --> [].
 
 placeholder(E)  --> ..., value(E), ... .
 
-condition(E)        --> [element('Condition',_,C)], { exps(C, [E]) }.
-default(E)          --> [element('Default',_,C)], { exps(C, [E]) }.
+condition(E)        --> element('Condition', C), { exps(C, [E]) }.
+default(E)          --> element('Default', C), { exps(C, [E]) }.
 override(Cond, Def) --> condition(Cond), default(Def).
 
-dependency(P)      --> [element('Dependency', [path=P], [])].
+dependency(P)      --> element('Dependency', [path=P], []).
 
 exps_l_r([L0, R0], L, R) :-
   L0 = element('Left', _, LC),
@@ -118,56 +122,56 @@ exps_l_r([L0, R0], L, R) :-
 % Convenience predicates for recursive parsing of children
 exps(C, Es) :- phrase(expressions(Es), C).
 
-exp(switch(Es))     --> [element('Switch',_,C)], { exps(C, Es) }.
-exp(case(Es))       --> [element('Case',_,C)], { exps(C, Es) }.
-exp(when(E))        --> [element('When',_,C)], { exps(C, [E]) }.
-exp(then(E))        --> [element('Then',_,C)], { exps(C, [E]) }.
-exp(greaterOf(Es))  --> [element('GreaterOf',_,C)], { exps(C, Es) }.
-exp(lesserOf(Es))   --> [element('LesserOf',_,C)], { exps(C, Es) }.
+exp(switch(Es))     --> element('Switch', C), { exps(C, Es) }.
+exp(case(Es))       --> element('Case', C), { exps(C, Es) }.
+exp(when(E))        --> element('When', C), { exps(C, [E]) }.
+exp(then(E))        --> element('Then', C), { exps(C, [E]) }.
+exp(greaterOf(Es))  --> element('GreaterOf', C), { exps(C, Es) }.
+exp(lesserOf(Es))   --> element('LesserOf', C), { exps(C, Es) }.
 
-exp(not(E))          --> [element('Not',_,C)], { exps(C, [E]) }.
-exp(equal(L, R))     --> [element('Equal',_,C)], { exps_l_r(C, L, R) }.
-exp(notEqual(L, R))  --> [element('NotEqual',_,C)], { exps_l_r(C, L, R) }.
-exp(all(Es))         --> [element('All',_,C)], { exps(C, Es) }.
-exp(any(Es))         --> [element('Any',_,C)], { exps(C, Es) }.
-exp(isComplete(E))   --> [element('IsComplete',_,C)], { exps(C, [E]) }.
+exp(not(E))          --> element('Not', C), { exps(C, [E]) }.
+exp(equal(L, R))     --> element('Equal', C), { exps_l_r(C, L, R) }.
+exp(notEqual(L, R))  --> element('NotEqual', C), { exps_l_r(C, L, R) }.
+exp(all(Es))         --> element('All', C), { exps(C, Es) }.
+exp(any(Es))         --> element('Any', C), { exps(C, Es) }.
+exp(isComplete(E))   --> element('IsComplete', C), { exps(C, [E]) }.
 
-exp(<(L, R))  --> [element('LessThan',_,C)], { exps_l_r(C, L, R) }.
-exp(>(L, R))  --> [element('GreaterThan',_,C)], { exps_l_r(C, L, R) }.
-exp(>=(L,R))  --> [element('GreaterThanOrEqual',_,C)], { exps_l_r(C, L, R) }.
-exp(=<(L,R))  --> [element('LessThanOrEqual',_,C)], { exps_l_r(C, L, R) }.
+exp(<(L, R))  --> element('LessThan',C), { exps_l_r(C, L, R) }.
+exp(>(L, R))  --> element('GreaterThan',C), { exps_l_r(C, L, R) }.
+exp(>=(L,R))  --> element('GreaterThanOrEqual',C), { exps_l_r(C, L, R) }.
+exp(=<(L,R))  --> element('LessThanOrEqual',C), { exps_l_r(C, L, R) }.
 
-exp(round(E))         --> [element('Round',_,C)], { exps(C, [E]) }.
-exp(add(Es))          --> [element('Add',_,C)], { exps(C, Es) }.
-exp(subtract(Es))     --> [element('Subtract',_,C)], { exps(C, Es) }.
-exp(minuend(E))       --> [element('Minuend',_,C)], { exps(C, [E]) }.
-exp(subtrahends(Es))  --> [element('Subtrahends',_,C)], { exps(C, Es) }.
-exp(multiply(Es))     --> [element('Multiply',_,C)], { exps(C, Es) }.
-exp(divide(Es))       --> [element('Divide',_,C)], { exps(C, Es) }.
-exp(dividend(E))      --> [element('Dividend',_,C)], { exps(C, [E]) }.
-exp(divisors(Es))     --> [element('Divisors',_,C)], { exps(C, Es) }.
-exp(stepwiseMult(Es)) --> [element('StepwiseMultiply',_,C)], { exps(C, Es) }.
-exp(multiplicand(Es)) --> [element('Multiplicand',_,C)], { exps(C, Es) }.
-exp(rate(Es))         --> [element('Rate',_,C)], { exps(C, Es) }.
-exp(ceiling(E))       --> [element('Ceiling',_,C)], { exps(C, [E]) }.
-exp(floor(E))         --> [element('Floor',_,C)], { exps(C, [E]) }.
-exp(maximum(E))       --> [element('Maximum',_,C)], { exps(C, [E]) }.
-exp(minimum(E))       --> [element('Minimum',_,C)], { exps(C, [E]) }.
-exp(modulo(L,R))      --> [element('Modulo',_,[L0, R0])], { exps([L0], [L]), exps([R0], [R]) }.
+exp(round(E))         --> element('Round',C), { exps(C, [E]) }.
+exp(add(Es))          --> element('Add',C), { exps(C, Es) }.
+exp(subtract(Es))     --> element('Subtract',C), { exps(C, Es) }.
+exp(minuend(E))       --> element('Minuend',C), { exps(C, [E]) }.
+exp(subtrahends(Es))  --> element('Subtrahends',C), { exps(C, Es) }.
+exp(multiply(Es))     --> element('Multiply',C), { exps(C, Es) }.
+exp(divide(Es))       --> element('Divide',C), { exps(C, Es) }.
+exp(dividend(E))      --> element('Dividend',C), { exps(C, [E]) }.
+exp(divisors(Es))     --> element('Divisors',C), { exps(C, Es) }.
+exp(stepwiseMult(Es)) --> element('StepwiseMultiply',C), { exps(C, Es) }.
+exp(multiplicand(Es)) --> element('Multiplicand',C), { exps(C, Es) }.
+exp(rate(Es))         --> element('Rate',C), { exps(C, Es) }.
+exp(ceiling(E))       --> element('Ceiling',C), { exps(C, [E]) }.
+exp(floor(E))         --> element('Floor',C), { exps(C, [E]) }.
+exp(maximum(E))       --> element('Maximum',C), { exps(C, [E]) }.
+exp(minimum(E))       --> element('Minimum',C), { exps(C, [E]) }.
+exp(modulo(L,R))      --> element('Modulo',[L0, R0]), { exps([L0], [L]), exps([R0], [R]) }.
 
-exp(addPayrollMonths(Es))     --> [element('AddPayrollMonths',_,C)], { exps(C, Es) }.
-exp(payrollMonthsBetween(Es)) --> [element('PayrollMonthsBetween',_,C)], { exps(C, Es) }.
-exp(startDate(Es))            --> [element('StartDate',_,C)], { exps(C, Es) }.
-exp(endDate(Es))              --> [element('EndDate',_,C)], { exps(C, Es) }.
+exp(addPayrollMonths(Es))     --> element('AddPayrollMonths',C), { exps(C, Es) }.
+exp(payrollMonthsBetween(Es)) --> element('PayrollMonthsBetween',C), { exps(C, Es) }.
+exp(startDate(Es))            --> element('StartDate',C), { exps(C, Es) }.
+exp(endDate(Es))              --> element('EndDate',C), { exps(C, Es) }.
 
 % Collections
-exp(index(E))           --> [element('Index',_,C)], { exps(C, [E]) }.
-exp(indexOf(Es))        --> [element('IndexOf',_,C)], { exps(C, Es) }.
-exp(collection(E))      --> [element('Collection',_,C)], { exps(C, [E]) }.
-exp(collectionSum(E))   --> [element('CollectionSum',_,C)], { exps(C, [E]) }.
-exp(collectionSize(E))  --> [element('CollectionSize',_,C)], { exps(C, [E]) }.
-exp(count(Es))          --> [element('Count',_,C)], { exps(C, Es) }.
-exp(filter(P, E))       --> [element('Filter',[path=P],C)], { exps(C, [E]) }.
+exp(index(E))           --> element('Index',C), { exps(C, [E]) }.
+exp(indexOf(Es))        --> element('IndexOf',C), { exps(C, Es) }.
+exp(collection(E))      --> element('Collection',C), { exps(C, [E]) }.
+exp(collectionSum(E))   --> element('CollectionSum',C), { exps(C, [E]) }.
+exp(collectionSize(E))  --> element('CollectionSize',C), { exps(C, [E]) }.
+exp(count(Es))          --> element('Count',C), { exps(C, Es) }.
+exp(filter(P, E))       --> element('Filter',[path=P],C), { exps(C, [E]) }.
 exp(V)                  --> value(V).
 
 exp(dependency(E))      --> dependency(E).
