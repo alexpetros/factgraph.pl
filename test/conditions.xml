@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<?xml-model href="./FactDictionaryModule.rng"?>
+<FactDictionaryModule>
+  <Facts>
+    <Fact path="/input">
+      <Override>
+        <Condition>
+          <Dependency path="/override"/>
+        </Condition>
+        <Default>
+          <Int>100</Int>
+        </Default>
+      </Override>
+      <Writable>
+        <Int/>
+      </Writable>
+      <Placeholder>
+        <Int>0</Int>
+      </Placeholder>
+    </Fact>
+    <Fact path="/override">
+      <Writable>
+        <Boolean/>
+      </Writable>
+    </Fact>
+    <Fact path="/switch2">
+      <Writable>
+        <Switch>
+          <Case>
+            <When>
+              <Dependency path="/override"/>
+            </When>
+            <Then>
+              <Int>3</Int>
+            </Then>
+          </Case>
+          <Case>
+            <When>
+              <True/>
+            </When>
+            <Then>
+              <Int>2</Int>
+            </Then>
+          </Case>
+        </Switch>
+        <Boolean/>
+      </Writable>
+    </Fact>
+  </Facts>
+</FactDictionaryModule>
+
+

@@ -87,6 +87,9 @@ condition_tests :-
   eval_path(D, [], "/input", 0),
   eval_path(D, [fact_value("/override", boolean(true))], "/input", 100),
   eval_path(D, [fact_value("/input", int(2)), fact_value("/override", boolean(true))], "/input", 100),
+  *eval_path(D, [], "/switch2", int(2)),
+  *eval_path(D, [fact_value("/override", boolean(true))], "/switch2", int(3)),
+  *eval_path(D, [fact_value("/override", boolean(false))], "/switch2", int(2)),
   true.
 
 twe_facts :-
