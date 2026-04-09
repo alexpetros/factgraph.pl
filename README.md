@@ -57,12 +57,17 @@ More example usages can be found in [`test.pl`](./test.pl).
 
 ## TODO
 
-* Dates
-* AddPayrollMonth
-* Switch and case statements
+###
+
+* Date types
+* `<AddPayrollMonth>`
 * Rational math
 * Probably other subtle math issues with integers and dollars
 * Testing against TWE scenarios
+
+## Optimizations
+
+* Remove cut from `<Switch>` implementation (I think this can be modeled as "true and all previous conditions are false")
 
 ## Out of scope
 

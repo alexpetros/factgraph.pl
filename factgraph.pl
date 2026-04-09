@@ -122,10 +122,11 @@ exps_l_r([L0, R0], L, R) :-
 % Convenience predicates for recursive parsing of children
 exps(C, Es) :- phrase(expressions(Es), C).
 
-exp(switch(Es))     --> element('Switch', C), { exps(C, Es) }.
-exp(case(Es))       --> element('Case', C), { exps(C, Es) }.
-exp(when(E))        --> element('When', C), { exps(C, [E]) }.
-exp(then(E))        --> element('Then', C), { exps(C, [E]) }.
+exp(switch(Es))   --> element('Switch', C), { exps(C, Es) }.
+exp(case(W, T))   --> element('Case', C), { exps(C, [W, T]) }.
+exp(E)            --> element('When', C), { exps(C, [E]) }.
+exp(E)            --> element('Then', C), { exps(C, [E]) }.
+
 exp(greaterOf(Es))  --> element('GreaterOf', C), { exps(C, Es) }.
 exp(lesserOf(Es))   --> element('LesserOf', C), { exps(C, Es) }.
 
@@ -356,6 +357,15 @@ eval(filter(CollPath, E), Vs), [s(D,G,Par)]  -->
     eval_path(D, G, CollPath, ItemIds),
     tfilter(maybe_eval_exp_in_filter(D, G, E, CollPath), ItemIds, Vs)
   }.
+
+eval(switch(Cases), V), [s(D,G,Par)] -->
+  [s(D,G,Par)],
+  {
+    memberd_t(case(Cond, Exp), Cases, true),
+    phrase(eval(Cond, true), [s(D,G,Par)], _),
+    ! % Accept the first condition that evaluates to true
+  },
+  eval(Exp, V).
 
 % Resolves dependencies inside collection filter paths,
 % which have no leading "." or "/" (this interface could be improved)

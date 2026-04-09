@@ -24,7 +24,7 @@
       </Writable>
     </Fact>
     <Fact path="/switch2">
-      <Writable>
+      <Derived>
         <Switch>
           <Case>
             <When>
@@ -43,8 +43,7 @@
             </Then>
           </Case>
         </Switch>
-        <Boolean/>
-      </Writable>
+      </Derived>
     </Fact>
   </Facts>
 </FactDictionaryModule>
