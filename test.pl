@@ -13,7 +13,7 @@ tests :-
   arithmetic_tests,
   collection_tests,
   comparitor_tests,
-  defaults_tests,
+  condition_tests,
   twe_facts.
 
 json_tests :-
@@ -80,9 +80,9 @@ comparitor_tests :-
   eval_path(D, [fact_value("/intA", int(3))], "/lessThanOrEqualToTwo", false),
   true.
 
-defaults_tests :-
-  println("defaults tests"),
-  load_dict("./test/defaults.xml", D),
+condition_tests :-
+  println("condition tests"),
+  load_dict("./test/conditions.xml", D),
   eval_path(D, [fact_value("/input", int(2))], "/input", 2),
   eval_path(D, [], "/input", 0),
   eval_path(D, [fact_value("/override", boolean(true))], "/input", 100),
