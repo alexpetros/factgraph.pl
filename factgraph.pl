@@ -266,7 +266,9 @@ graph(_,[]) --> [].
 starts_with_t(S0, S, false) :- length(S0, L0), length(S, L), L #< L0.
 starts_with_t(S0, S, T) :- length(S0, L), length(S1, L), append([S1, _], S), =(S0, S1, T).
 
-is_meta_fact(string(P)-pairs(_), T) :- starts_with_t("/meta", P, I), not_t(I, T).
+not(false, true).
+not(true, false).
+is_meta_fact(string(P)-pairs(_), T) :- starts_with_t("/meta", P, I), not(I, T).
 load_graph(Fp, D, G) :-
   phrase_from_file(json_chars(pairs(L0)), Fp),
   tfilter(is_meta_fact, L0, L),
@@ -278,39 +280,60 @@ graph_path_value(G, P, V) :- member(fact_value(P, V), G).
  * Evaluate
  * ---------------------------------------------------------------- */
 
-% Reifed arithmetic predicates
-not_t(true, false).
-not_t(false, true).
-eq_t(A, B, true)  :- A =:= B.
-eq_t(A, B, false) :- A =\= B.
-lt_t(A, B, true)  :- A < B.
-lt_t(A, B, false) :- A >= B.
-gt_t(A, B, true)  :- A > B.
-gt_t(A, B, false) :- A =< B.
+% Relate types values to their "innter" arthmetic values
+% This makes it more convenient to compare ints with decimals
+arith_val(A, AV) :- A = dollar(AV); A = int(AV).
+arith_vals(A, B, AV, BV) :- arith_val(A, AV), arith_val(B, BV).
+
+arith_cast(RawA, int(A)) :- A is truncate(RawA), A =:= RawA.
+arith_cast(RawA, dollar(RawA)) :- A is truncate(RawA), A =\= RawA.
+
+% Reifed logic predicates
+not_t(boolean(true), boolean(false)).
+not_t(boolean(false), boolean(true)).
+
+eq_t_(A, B, boolean(true)) :- A =:= B.
+eq_t_(A, B, boolean(false)) :- A =\= B.
+eq_t(boolean(AV), boolean(BV), T)  :- eq_t_(AV, BV, T).
+eq_t(A, B, T) :- arith_vals(A, B, AV, BV), eq_t_(AV, BV, T).
+
+all_t([], boolean(true)).
+all_t([E|Es], T) :- ','(=(E, boolean(true)), all_t(Es), T).
+any_t([], boolean(false)).
+any_t([E|Es], T) :- ';'(=(E, boolean(true)), any_t(Es), T).
+
+% Reified arthmetic predicates
+lt_t(A, B, boolean(true))  :- arith_vals(A, B, AV, BV), AV < BV.
+lt_t(A, B, boolean(false)) :- arith_vals(A, B, AV, BV), AV >= BV.
+gt_t(A, B, boolean(true))  :- arith_vals(A, B, AV, BV), AV > BV.
+gt_t(A, B, boolean(false)) :- arith_vals(A, B, AV, BV), AV =< BV.
 neq_t(A, B, T)    :- eq_t(A, B, I), not_t(I, T).
 gte_t(A, B, T)    :- lt_t(A, B, I), not_t(I, T).
 lte_t(A, B, T)    :- gt_t(A, B, I), not_t(I, T).
 
-% Reifed logic predicates
-all_t([], true).
-all_t([E|Es], T) :- ','(=(E, true), all_t(Es), T).
-any_t([], false).
-any_t([E|Es], T) :- ';'(=(E, true), any_t(Es), T).
-
-fold([], _, V, V).
-fold([F|Fs], Op, V0, V) :- E =..[Op, V0, F], V1 is E, fold(Fs, Op, V1, V).
+a_add(A, B, V)         :- arith_vals(A, B, AV, BV), V0 is AV + BV, arith_cast(V0, V).
+a_multiply(A, B, V)    :- arith_vals(A, B, AV, BV), V0 is AV * BV, arith_cast(V0, V).
+a_divide(A, B, V)      :- arith_vals(A, B, AV, BV), V0 is BV / AV, arith_cast(V0, V).
+a_subtract(A, B, V)    :- arith_vals(A, B, AV, BV), V0 is BV - AV, arith_cast(V0, V).
+a_round(A, int(V))     :- arith_val(A, AV), V is floor(AV + 0.5).
+a_ceiling(A, int(V))   :- arith_val(A, AV), V is ceiling(AV).
+a_floor(A, int(V))     :- arith_val(A, AV), V is floor(AV).
+a_modulo(A, B, int(V)) :- arith_vals(A, B, AV, BV), V is AV mod BV.
+a_list_max(As, V)      :- maplist(arith_val, As, AVs), list_max(AVs, V0), arith_cast(V0, V).
+a_list_min(As, V)      :- maplist(arith_val, As, AVs), list_min(AVs, V0), arith_cast(V0, V).
+a_sum_list(As, V)      :- maplist(arith_val, As, AVs), sum_list(AVs, V0), arith_cast(V0, V).
 
 eval_all([], [])         --> [].
 eval_all([A|As], [B|Bs]) --> eval(A, B), eval_all(As, Bs).
 
-eval(int(V), V)        --> [].
-eval(dollar(V), V)     --> [].
-eval(boolean(V), V)    --> [].
-eval(enum(V, _), V)    --> [].
-eval(collection(V), V) --> []. % This is a <Writable> collection
+eval(int(V), int(V))          --> [].
+eval(dollar(V), dollar(V))    --> [].
+eval(boolean(V), boolean(V))  --> [].
+eval(enum(V, _), V)           --> [].
+eval(collection(V), V)        --> []. % This is a <Writable> collection
+% eval(day(V), V)        --> [].
 
 % value(enumOpts(V))       --> [element('EnumOptions', _, V)].
-% value(day(V))            --> [element('Day',_,[V])].
 % value(days(V))           --> [element('Days',_,[V])].
 % value(today(V))          --> [element('Today',_,[V])].
 % value(lastDayOfMonth(V)) --> [element('LastDayOfMonth',_,[V])].
@@ -322,33 +345,37 @@ eval(<(L0, R0), V)        --> eval(L0, L), eval(R0, R), { lt_t(L, R, V) }.
 eval(>(L0, R0), V)        --> eval(L0, L), eval(R0, R), { gt_t(L, R, V) }.
 eval(>=(L0, R0), V)       --> eval(L0, L), eval(R0, R), { gte_t(L, R, V) }.
 eval(=<(L0, R0), V)       --> eval(L0, L), eval(R0, R), { lte_t(L, R, V) }.
+eval(greaterOf(Ts0), V)   --> eval_all(Ts0, Ts), { a_list_max(Ts, V) }.
+eval(lesserOf(Ts0), V)    --> eval_all(Ts0, Ts), { a_list_min(Ts, V) }.
 
-eval(add(Ts0), V)       --> eval_all(Ts0, Ts), { fold(Ts, +, 0, V) }.
-eval(multiply(Ts0), V)  --> eval_all(Ts0, Ts), { fold(Ts, *, 1, V) }.
-eval(round(T0), V)      --> eval(T0, T), { V is floor(T + 0.5) }.
-eval(ceiling(T0), V)    --> eval(T0, T), { V is ceiling(T) }.
-eval(floor(T0), V)      --> eval(T0, T), { V is floor(T) }.
-eval(modulo(L0, R0), V) --> eval(L0, L), eval(R0, R), { V is L mod R  }.
-eval(greaterOf(Ts0), V) --> eval_all(Ts0, Ts), { list_max(Ts, V) }.
-eval(lesserOf(Ts0), V)  --> eval_all(Ts0, Ts), { list_min(Ts, V) }.
+eval(add(Ts0), V)       --> eval_all(Ts0, Ts), { foldl(a_add, Ts, int(0), V) }.
+eval(multiply(Ts0), V)  --> eval_all(Ts0, Ts), { foldl(a_multiply, Ts, int(1), V) }.
+eval(round(T0), V)      --> eval(T0, T), { a_round(T, V) }.
+eval(ceiling(T0), V)    --> eval(T0, T), { a_ceiling(T, V) }.
+eval(floor(T0), V)      --> eval(T0, T), { a_floor(T, V) }.
+eval(modulo(L0, R0), V) --> eval(L0, L), eval(R0, R), { a_modulo(L, R, V) }.
 
 eval(divide([dividend(D0), divisors(Ds0)]), V) -->
   eval(D0, D),
   eval_all(Ds0, Ds),
-  { fold(Ds, /, D, V) }.
+  { foldl(a_divide, Ds, D, V) }.
 eval(subtract([minuend(M0), subtrahends(Ss0)]), V) -->
   eval(M0, M),
   eval_all(Ss0, Ss),
-  { fold(Ss, -, M, V) }.
+  { foldl(a_subtract, Ss, M, V) }.
 
 % Collections
-eval(maximum(E), V)        --> eval(E, Vs), { list_max(Vs, V) }.
-eval(minimum(E), V)        --> eval(E, Vs), { min(Vs, V) }.
-eval(collectionSum(E), V)  --> eval(E, Vs), { sum_list(Vs, V) }.
-eval(collectionSize(E), V) --> eval(E, Vs), { length(Vs, V) }.
-eval(count(T0s), V)        --> eval_all(T0s, T1s), { tfilter(=(true), T1s, Vs), length(Vs, V) }.
+eval(maximum(E), V)             --> eval(E, Vs), { a_list_max(Vs, V) }.
+eval(minimum(E), V)             --> eval(E, Vs), { a_list_min(Vs, V) }.
+eval(collectionSum(E), V)       --> eval(E, Vs), { a_sum_list(Vs, V) }.
+eval(collectionSize(E), int(V)) --> eval(E, Vs), { length(Vs, V) }.
+eval(count(T0s), int(V))        -->
+  eval_all(T0s, T1s),
+  { tfilter(=(boolean(true)), T1s, Vs), length(Vs, V) }.
 
-eval(indexOf([collection(C0), index(I0)]), V) --> eval(C0, C), eval(I0, I), { nth0(I, C, V) }.
+eval(indexOf([collection(C0), index(I0)]), V) -->
+  eval(C0, C), eval(I0, int(I)), { nth0(I, C, V) }.
+% TODO this is probably wrong
 eval(collection(T0), V) --> eval(T0, V).
 
 eval(filter(CollPath, E), Vs), [s(D,G,Par)]  -->
@@ -362,7 +389,7 @@ eval(switch(Cases), V), [s(D,G,Par)] -->
   [s(D,G,Par)],
   {
     memberd_t(case(Cond, Exp), Cases, true),
-    phrase(eval(Cond, true), [s(D,G,Par)], _),
+    phrase(eval(Cond, boolean(true)), [s(D,G,Par)], _),
     ! % Accept the first condition that evaluates to true
   },
   eval(Exp, V).
@@ -399,9 +426,10 @@ eval(dependency(Path), V), [s(D,G,Par)] -->
 eval_path(D, G, RPath, Value) :-
   ( CPath = RPath ; resolved_to_canonical(RPath, CPath)),
   member(fact(CPath, _, Ex, Pl, Ov), D),
+  % writeln(Ex),
   (
     % The override evaluation is a little nasty, and regrettably non-monotonic
-    ( Ov = override(Cond, Def), phrase(eval(Cond, true), [s(D,G,RPath)], _)) -> E = Def
+    ( Ov = override(Cond, Def), phrase(eval(Cond, boolean(true)), [s(D,G,RPath)], _)) -> E = Def
     ; Ex = writable(_, _), graph_path_value(G, RPath, E) -> true
     ; Ex = derived(E) -> true
     ; E = Pl
@@ -420,7 +448,11 @@ maybe_eval_paths(D, G, Paths, Values) :- maplist(maybe_eval_path(D, G), Paths, V
 % Only used in <Filter> contexts
 maybe_eval_exp_in_filter(D, G, E, CollPath, ItemId, Value) :-
   collection_id_path(CollPath, ItemId, CollectionItemPath),
-  ( phrase(eval(E, V), [s(D,G,CollectionItemPath)], _) -> Value = V; Value = false ).
+  (
+    phrase(eval(E, V), [s(D,G,CollectionItemPath)], _) ->
+    V = boolean(Value)
+  ; Value = false
+  ).
 
 
 /* ----------------------------------------------------------------

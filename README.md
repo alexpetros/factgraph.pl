@@ -60,6 +60,7 @@ More example usages can be found in [`test.pl`](./test.pl).
 ###
 
 * Date types
+* `<MultiEnum>`
 * `<AddPayrollMonth>`
 * Rational math
 * Probably other subtle math issues with integers and dollars
