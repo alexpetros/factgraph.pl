@@ -1,8 +1,6 @@
 :- use_module(library(lists)).
 :- use_module('./factgraph.pl').
 
-% term_expansion($(A), dollar(A)).
-
 run :-
   println("Running tests"),
   (
@@ -23,7 +21,7 @@ json_tests :-
   load_dict("./test/arithmetic.xml", D),
   load_graph("./test/arithmetic.json", D, G),
   eval_path(D, G, "/intA", int(2)),
-  eval_path(D, G, "/booleanA", (boolean(true))),
+  eval_path(D, G, "/booleanA", boolean(true)),
   eval_path(D, G, "/dollarA", dollar(2.5)).
 
 arithmetic_tests :-

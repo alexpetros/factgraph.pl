@@ -422,7 +422,6 @@ eval(dependency(Path), V), [s(D,G,Par)] -->
     eval_path(D, G, RPath, V)
   }.
 
-
 eval_path(D, G, RPath, Value) :-
   ( CPath = RPath ; resolved_to_canonical(RPath, CPath)),
   member(fact(CPath, _, Ex, Pl, Ov), D),
