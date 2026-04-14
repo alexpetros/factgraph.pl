@@ -3,13 +3,17 @@
 :- use_module(library(lambda)).
 :- use_module('./factgraph.pl').
 
-fg_test(json_tests, "./test/arithmetic.xml", "./test/arithmetic.json", [
+run :-
+  run_suites,
+  run_twe_facts_test.
+
+fg_suite(json_tests, "./test/arithmetic.xml", "./test/arithmetic.json", [
   assert_fact("/intA", int(2)),
   assert_fact("/booleanA", boolean(true)),
   assert_fact("/dollarA", dollar(2.5))
 ]).
 
-fg_test(collection_tests, "./test/collections.xml", "./test/collections.json", [
+fg_suite(collection_tests, "./test/collections.xml", "./test/collections.json", [
   assert_fact("/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/income", dollar(3000.0)),
   assert_fact("/jobs/#2a0c7011-4509-484f-a506-13f864cf64b2/halfIncome", int(1500)),
   assert_fact("/jobs/#5ff49e28-7728-4424-9047-c444e0f01923/income", dollar(6000.0)),
@@ -23,7 +27,7 @@ fg_test(collection_tests, "./test/collections.xml", "./test/collections.json", [
   assert_fact("/countHighestPayingJobOver9000", int(0))
 ]).
 
-fg_test(arithmetic_tests, "./test/arithmetic.xml", none, [
+fg_suite(arithmetic_tests, "./test/arithmetic.xml", none, [
   assert_fact([fact_value("/intA", int(2))], "/addTwo", int(4)),
   assert_fact([fact_value("/intA", int(2))], "/subtractTwo", int(0)),
   assert_fact([fact_value("/intA", int(2))], "/multiplyByFour", int(8)),
@@ -36,7 +40,7 @@ fg_test(arithmetic_tests, "./test/arithmetic.xml", none, [
   assert_fact([fact_value("/intA", int(2))], "/max", int(2))
 ]).
 
-fg_test(comparitor_tests, "./test/arithmetic.xml", none, [
+fg_suite(comparitor_tests, "./test/arithmetic.xml", none, [
   assert_fact([fact_value("/booleanA", boolean(true))], "/isTrue", boolean(true)),
   assert_fact([fact_value("/booleanA", boolean(true))], "/isFalse", boolean(false)),
   assert_fact([fact_value("/intA", int(2))], "/equalsTwo", boolean(true)),
@@ -57,7 +61,7 @@ fg_test(comparitor_tests, "./test/arithmetic.xml", none, [
   assert_fact([fact_value("/intA", int(3))], "/lessThanOrEqualToTwo", boolean(false))
 ]).
 
-fg_test(condition_tests, "./test/conditions.xml", none, [
+fg_suite(condition_tests, "./test/conditions.xml", none, [
   assert_fact([fact_value("/input", int(2))], "/input", int(2)),
   assert_fact([], "/input", int(0)),
   assert_fact([fact_value("/override", boolean(true))], "/input", int(100)),
@@ -67,22 +71,15 @@ fg_test(condition_tests, "./test/conditions.xml", none, [
   assert_fact([fact_value("/override", boolean(false))], "/switch2", int(2))
 ]).
 
-twe_facts :-
-  println("TWE facts test"),
-  % This asserts that there is only one possible evaluation of the Fact Dictionary
-  findall(Fs, load_fact_dir("./test/twe-facts/", Fs), [D]),
-  load_graph("./test/fg-1.json", D, _),
-  member(fact("/totalOwed", _, _, _, _), D).
-
-run :-
-  findall(fg_test(N,DP,GP,As), fg_test(N,DP,GP,As), Ts),
-  maplist(run_test, Ts, Resultss),
+run_suites :-
+  findall(fg_suite(N,DP,GP,As), fg_suite(N,DP,GP,As), Ts),
+  maplist(run_suite, Ts, Resultss),
   append(Resultss, Results),
   tpartition(is_pass_t, Results, _, Failures),
   length(Failures, L),
-  if_(L #= 0, println("✅ All tests passed!"), (println("❌ Tests failed"), halt(1))).
+  if_(L #= 0, println("✅ Unit tests passed!"), (println("❌ Tests failed"), halt(1))).
 
-run_test(fg_test(Name, DPath, GPath, Assertions), Results) :-
+run_suite(fg_suite(Name, DPath, GPath, Assertions), Results) :-
   load_dict(DPath, D),
   if_(dif(GPath, none), load_graph(GPath, D, G), G = []),
   maplist(run_assertion(D, G), Assertions, Results),
@@ -99,18 +96,26 @@ run_assertion(D, G0, assert_fact(G1, Path, EV), Res) :-
   attempt_eval(D, G, Path, Actual),
   if_(=(Actual, EV), Res = pass(Path), Res = fail(Path, Actual, EV)).
 
-failure_details(fail(Path, Actual, EV), S) :-
+phrase_failure_details(fail(Path, Actual, EV), S) :-
   phrase(format_("~s: ~q expected, ~q actual", [Path, Actual, EV]), S).
 print_results_summary(Name, Results) :-
   tpartition(is_pass_t, Results, Passes, Failures),
   length(Passes, PL),
   length(Failures, FL),
   format("~a: ~d passed, ~d failed~n", [Name, PL, FL]),
-  maplist(failure_details, Failures, Ss),
+  maplist(phrase_failure_details, Failures, Ss),
   maplist(println, Ss).
 
-% term_expansion(fg_test(Name, DPath, GPath, Assertions), (Name :- Body)) :-
-%   Body = run_test(DPath, GPath, Assertions, Results).
+run_twe_facts_test :- twe_facts_test ->
+  println("✅ TWE facts test passed")
+; println("❌ TWE facts test failed"), halt(1).
+
+twe_facts_test :-
+  println("Running TWE facts test"),
+  % This asserts that there is only one possible evaluation of the Fact Dictionary
+  findall(Fs, load_fact_dir("./test/twe-facts/", Fs), [D]),
+  load_graph("./test/fg-1.json", D, _),
+  member(fact("/totalOwed", _, _, _, _), D).
 
 % writeln(S) :- write_term(S, [ double_quotes(true) ]).
 println(S) :- format("~s~n", [S]).
