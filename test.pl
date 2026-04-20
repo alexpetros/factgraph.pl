@@ -4,7 +4,9 @@
 :- use_module('./factgraph.pl').
 
 run :-
+  println(""),
   run_suites,
+  println(""),
   run_twe_facts_test.
 
 fg_suite(json_tests, "./test/arithmetic.xml", "./test/arithmetic.json", [
@@ -72,6 +74,7 @@ fg_suite(condition_tests, "./test/conditions.xml", none, [
 ]).
 
 run_suites :-
+  println("Running TWE unit tests"),
   findall(fg_suite(N,DP,GP,As), fg_suite(N,DP,GP,As), Ts),
   maplist(run_suite, Ts, Resultss),
   append(Resultss, Results),
@@ -82,22 +85,20 @@ run_suites :-
 run_suite(fg_suite(Name, DPath, GPath, Assertions), Results) :-
   load_dict(DPath, D),
   if_(dif(GPath, none), load_graph(GPath, D, G), G = []),
-  maplist(run_assertion(D, G), Assertions, Results),
+  maplist(run_test(D, G), Assertions, Results),
   print_results_summary(Name, Results).
 
 is_pass_t(Result, T) :- functor(Result, F, _), =(F, pass, T).
 attempt_eval(D, G, Path, V) :-  eval_path(D, G, Path, V), !; V = incomplete.
 
-run_assertion(D, G, assert_fact(Path, EV), Res) :-
-  attempt_eval(D, G, Path, Actual),
-  if_(=(Actual, EV), Res = pass(Path), Res = fail(Path, Actual, EV)).
-run_assertion(D, G0, assert_fact(G1, Path, EV), Res) :-
+run_test(D, G0, assert_fact(Path, EV), Res) :- run_test(D, G0, assert_fact([], Path, EV), Res).
+run_test(D, G0, assert_fact(G1, Path, EV), Res) :-
   append(G0, G1, G),
   attempt_eval(D, G, Path, Actual),
   if_(=(Actual, EV), Res = pass(Path), Res = fail(Path, Actual, EV)).
 
 phrase_failure_details(fail(Path, Actual, EV), S) :-
-  phrase(format_("~s: ~q expected, ~q actual", [Path, Actual, EV]), S).
+  phrase(format_("~s: ~q expected, ~q actual", [Path, EV, Actual]), S).
 print_results_summary(Name, Results) :-
   tpartition(is_pass_t, Results, Passes, Failures),
   length(Passes, PL),

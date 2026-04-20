@@ -64,6 +64,12 @@ trim_xml([element(E, A, C)|Ns]) -->
   trim_xml(Ns).
 trim_xml([]) --> [].
 
+% Date parsing predicates
+seql(Cs, L)    --> seq(Cs), { length(Cs, L) }.
+day(YCs, MCs, DCs)  -->
+  seql(YCs, 4), "-", seql(MCs, 2), "-", seql(DCs, 2).
+  % { number_chars(Y, YCs), number_chars(M, MCs), number_chars(D, DCs) }.
+
 % String parsing predicates
 ws                    --> [W], { char_type(W, whitespace) }, ws.
 ws                    --> [].
@@ -85,13 +91,14 @@ type(enum(Op))        --> element('Enum', [optionsPath=Op], _).
 type_elem(Type)       --> ..., type(Type), ... .
 
 % Values used in derived calculations
+
 value(int(V))            --> element('Int', [S]), { number_chars(V, S) }.
 value(dollar(V))         --> element('Dollar', [S]), { number_chars(V, S) }.
 value(boolean(V))        --> element('Boolean', [S]), { atom_chars(V, S) }.
 value(boolean(true))     --> element('True', []).
 value(boolean(false))    --> element('False', []).
-value(day(V))            --> element('Day', [V]).
-value(days(V))           --> element('Days', [V]).
+value(day(Y,M,D))        --> element('Day', [Cs]), { phrase(day(Y,M,D), Cs) }.
+value(days(V))           --> element('Days', [S]), { number_chars(V, S) }.
 value(rational(V))       --> element('Rational', [V]).
 value(enum(V, Op))       --> element('Enum', [optionsPath=Op], [V]).
 value(enumOpts(V))       --> element('EnumOptions', V).
@@ -331,10 +338,10 @@ eval(dollar(V), dollar(V))    --> [].
 eval(boolean(V), boolean(V))  --> [].
 eval(enum(V, _), V)           --> [].
 eval(collection(V), V)        --> []. % This is a <Writable> collection
-% eval(day(V), V)        --> [].
+eval(day(Y,M,D), day(Y,M,D))  --> [].
+eval(days(V), days(V))        --> [].
 
 % value(enumOpts(V))       --> [element('EnumOptions', _, V)].
-% value(days(V))           --> [element('Days',_,[V])].
 % value(today(V))          --> [element('Today',_,[V])].
 % value(lastDayOfMonth(V)) --> [element('LastDayOfMonth',_,[V])].
 

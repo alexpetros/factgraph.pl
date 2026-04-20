@@ -57,18 +57,19 @@ More example usages can be found in [`test.pl`](./test.pl).
 
 ## TODO
 
-###
-
+### For TWE completeness
 * Date types
-* `<MultiEnum>`
-* `<AddPayrollMonth>`
+  * Including `/day`, `/month`, `/year`, and `/ordinal`
+  * Date arithmetic
+  * `<AddPayrollMonth>`
 * Rational math
-* Probably other subtle math issues with integers and dollars
 * Testing against TWE scenarios
 
 ## Optimizations
 
+* Don't do fuzzy casting (dollar values become integers if they're used in a calculation that results in an integer)
 * Remove cut from `<Switch>` implementation (I think this can be modeled as "true and all previous conditions are false")
+* `<MultiEnum>` (we don't use this in TWE but it should be implemented)
 
 ## Out of scope
 
